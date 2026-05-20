@@ -69,7 +69,7 @@ $ sudo mkdir html vod hls<br />
 $ sudo chown -R www-data:www-data /var/www<br />
 $ sudo chmod -R 755 /var/www<br />
 \#Download the html directory in this github repository to /var/www/html so that index.php is at /var/www/html/index.php.<br />
-$ cd /var/www && mkdir vod clip hls
+$ cd /var/www && mkdir vod clip hls<br />
 $ sudo nginx -t<br />
 $ sudo systemctl enable nginx<br />
 $ sudo systemctl start nginx<br />

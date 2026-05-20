@@ -17,7 +17,10 @@ if (empty($streamKey)) {
 $clipDir = '/var/www/clip/';
 $hlsBase = 'http://127.0.0.1:9090/hls/';
 
-$playlistUrl = $hlsBase . $streamKey . '.m3u8';
+$playlistUrl =
+    $hlsBase .
+    $streamKey .
+    '/index.m3u8';
 
 // Fetch playlist
 $playlist = @file_get_contents($playlistUrl);
@@ -64,8 +67,8 @@ if ($clipLength < 1) {
 }
 
 // Estimate segment count
-// Assumes ~2s fragments
-$segmentCount = ceil($clipLength / 2);
+// Assumes ~1s fragments
+$segmentCount = $clipLength;
 
 // Generate filename
 $clipName = $streamKey . '_clip_' . time() . '.mp4';
@@ -87,7 +90,7 @@ $cmd = sprintf(
     '-live_start_index -%d ' .
     '-i %s ' .
     '-t %d ' .
-    '-c copy ' .
+    '-c:v copy -c:a aac ' .
     '-bsf:a aac_adtstoasc ' .
     '%s 2>&1',
     $segmentCount,
@@ -112,4 +115,3 @@ if ($returnStatus === 0) {
         'details' => $output
     ]);
 }
-

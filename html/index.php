@@ -2,7 +2,10 @@
 $streamKey = isset($_GET['streamkey']) ? preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['streamkey']) : 'test';
 
 $baseUrl = 'http://10.0.0.65:9090/hls/';
-$finalSource = $baseUrl . rawurlencode($streamKey) . '.m3u8';
+$finalSource =
+    $baseUrl .
+    rawurlencode($streamKey) .
+    '/index.m3u8';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -450,8 +453,8 @@ function loadStream(streamKey) {
 
     const source =
         '<?= $baseUrl ?>' +
-        encodeURIComponent(streamKey) +
-        '.m3u8';
+	encodeURIComponent(streamKey) +
+	'/index.m3u8';
 
     document.getElementById('currentStream').textContent = streamKey;
 
@@ -462,12 +465,20 @@ function loadStream(streamKey) {
 
     if (Hls.isSupported()) {
 
-        hls = new Hls({
-            lowLatencyMode: true,
-            liveSyncDurationCount: 1,
-            liveMaxLatencyDurationCount: 3,
-            backBufferLength: 90
-        });
+	hls = new Hls({
+
+	    lowLatencyMode: true,
+
+	    liveSyncDuration: 1,
+
+	    liveMaxLatencyDuration: 2,
+
+	    maxLiveSyncPlaybackRate: 1.5,
+
+	    backBufferLength: 30,
+
+	    enableWorker: true
+	});
 
         hls.loadSource(source);
         hls.attachMedia(video);

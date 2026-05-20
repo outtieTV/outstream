@@ -1,6 +1,9 @@
 # outstream
-Outstream is an attempt at an nginx web server with rtmp and vod modules.<br />
+Outstream is an attempt at an nginx web server with rtmp and vod modules. I plan on adding clips functionality and a clip library page.<br />
 <br />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/311ed9af-44a0-43c9-a439-e19cd62dd4c7" />
+<img width="1920" height="1080" alt="image-1" src="https://github.com/user-attachments/assets/e3335145-52ba-48ea-b63e-447209c940e2" />
+
 install vlc media player<br />
 install obs studio<br />
 <br />

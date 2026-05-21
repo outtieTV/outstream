@@ -5,13 +5,17 @@ $allowed = ['mp4', 'flv', 'webm', 'mov'];
 $nativePlayable = ['mp4', 'webm', 'mov'];
 
 $files = array_values(array_filter(scandir($dir), function($f) use ($dir) {
-    return $f !== '.' && $f !== '..' && is_file($dir . '/' . $f);
+    return $f !== '.' &&
+           $f !== '..' &&
+           is_file($dir . '/' . $f);
 }));
 
 $data = [];
 
 foreach ($files as $file) {
+
     $path = $dir . '/' . $file;
+
     $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
 
     if (!in_array($ext, $allowed)) {
@@ -19,9 +23,68 @@ foreach ($files as $file) {
     }
 
     $streamKey = "unknown";
+
     if (preg_match('/^([a-zA-Z0-9_-]+)_/i', $file, $matches)) {
         $streamKey = strtolower($matches[1]);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Load optional JSON metadata
+    |--------------------------------------------------------------------------
+    */
+    $baseName = pathinfo($file, PATHINFO_FILENAME);
+
+    $jsonPath = $dir . '/' . $baseName . '.json';
+
+    $metadata = null;
+
+    if (file_exists($jsonPath)) {
+
+        $json = json_decode(file_get_contents($jsonPath), true);
+
+        if (is_array($json)) {
+            $metadata = $json;
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Determine display title
+    |--------------------------------------------------------------------------
+    */
+    $displayTitle = $metadata['title'] ?? $file;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Description
+    |--------------------------------------------------------------------------
+    */
+    $description = $metadata['description'] ?? '';
+
+    /*
+    |--------------------------------------------------------------------------
+    | Clip start/end
+    |--------------------------------------------------------------------------
+    */
+    $clipStart = isset($metadata['start'])
+        ? intval($metadata['start'])
+        : 0;
+
+    $clipEnd = isset($metadata['end'])
+        ? intval($metadata['end'])
+        : 0;
+
+    $clipLength = isset($metadata['clip_length'])
+        ? intval($metadata['clip_length'])
+        : 0;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Has metadata?
+    |--------------------------------------------------------------------------
+    */
+    $isEditedClip = file_exists($jsonPath);
 
     $data[] = [
         "name" => $file,
@@ -29,14 +92,41 @@ foreach ($files as $file) {
         "mtime" => filemtime($path),
         "size" => filesize($path),
         "ext" => $ext,
-        "playable" => in_array($ext, $nativePlayable)
+        "playable" => in_array($ext, $nativePlayable),
+
+        "edited" => $isEditedClip,
+        "title" => $displayTitle,
+        "description" => $description,
+
+        "clipStart" => $clipStart,
+        "clipEnd" => $clipEnd,
+        "clipLength" => $clipLength
     ];
 }
 
-/* Newest first */
+/*
+|--------------------------------------------------------------------------
+| Newest first
+|--------------------------------------------------------------------------
+*/
 usort($data, function($a, $b) {
     return $b["mtime"] <=> $a["mtime"];
 });
+
+function formatTime($seconds)
+{
+    $seconds = intval($seconds);
+
+    $h = floor($seconds / 3600);
+    $m = floor(($seconds % 3600) / 60);
+    $s = $seconds % 60;
+
+    if ($h > 0) {
+        return sprintf("%02d:%02d:%02d", $h, $m, $s);
+    }
+
+    return sprintf("%02d:%02d", $m, $s);
+}
 ?>
 
 <!DOCTYPE html>
@@ -44,6 +134,7 @@ usort($data, function($a, $b) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Clip Library</title>
 
 <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
@@ -58,6 +149,7 @@ usort($data, function($a, $b) {
     --muted: #9ca3af;
     --accent: #3b82f6;
     --green: #10b981;
+    --edited: #f59e0b;
 }
 
 * {
@@ -89,7 +181,9 @@ h1 {
     margin-bottom: 24px;
 }
 
-input, button, select {
+input,
+button,
+select {
     background: #161616;
     border: 1px solid #2a2a2a;
     color: white;
@@ -128,7 +222,10 @@ button:hover {
     border: 1px solid var(--border);
     border-radius: 22px;
     overflow: hidden;
-    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease,
+        border-color 0.2s ease;
     cursor: pointer;
 }
 
@@ -155,11 +252,30 @@ button:hover {
 
 .badge {
     position: absolute;
-    top: 12px; left: 12px;
+    top: 12px;
+    left: 12px;
+
     background: rgba(0,0,0,0.7);
     backdrop-filter: blur(10px);
+
     padding: 6px 10px;
     border-radius: 999px;
+
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+}
+
+.edited-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    background: rgba(245, 158, 11, 0.9);
+
+    padding: 6px 10px;
+    border-radius: 999px;
+
     font-size: 12px;
     font-weight: bold;
     color: white;
@@ -176,9 +292,25 @@ button:hover {
 }
 
 .filename {
-    font-size: 14px;
-    margin-bottom: 14px;
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 10px;
     word-break: break-word;
+}
+
+.realfile {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 12px;
+    word-break: break-word;
+}
+
+.description {
+    color: #d1d5db;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 14px;
+    white-space: pre-wrap;
 }
 
 .meta {
@@ -232,38 +364,77 @@ button:hover {
     text-align: center;
 }
 
-/* Modal Window for Player */
+/* Modal */
+
 .vjs-modal {
     display: none;
     position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
+
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 100%;
+
     background: rgba(0, 0, 0, 0.85);
+
     z-index: 9999;
+
     justify-content: center;
     align-items: center;
 }
+
 .vjs-modal-content {
     width: 90%;
     max-width: 960px;
+
     background: #000;
+
     position: relative;
+
     border-radius: 8px;
     overflow: hidden;
 }
+
 .vjs-modal-close {
     position: absolute;
-    top: 10px; right: 15px;
-    font-size: 28px; color: #fff;
-    cursor: pointer; z-index: 10001;
+
+    top: 10px;
+    right: 15px;
+
+    font-size: 28px;
+    color: #fff;
+
+    cursor: pointer;
+    z-index: 10001;
+
     background: rgba(0,0,0,0.5);
-    border: none; padding: 0 8px; border-radius: 4px;
+
+    border: none;
+    padding: 0 8px;
+
+    border-radius: 4px;
 }
 
 @media (max-width: 700px) {
-    body { padding: 16px; }
-    .grid { grid-template-columns: 1fr; }
-    .preview { height: 200px; }
-    .video-js { width: 100% !important; height: auto !important; aspect-ratio: 16/9; }
+
+    body {
+        padding: 16px;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    .preview {
+        height: 200px;
+    }
+
+    .video-js {
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 16/9;
+    }
 }
 </style>
 </head>
@@ -271,25 +442,28 @@ button:hover {
 <body>
 
 <a href="/" class="home-link">
-    ← Back to Stream Player
+    â† Back to Stream Player
 </a>
 
-<h1>🎬 Clip Library</h1>
+<h1>ðŸŽ¬ Clip Library</h1>
 
 <div class="subtitle">
     Browse, preview, and share saved clips
 </div>
 
 <div class="topbar">
+
     <input
         type="text"
         id="searchBox"
-        placeholder="Search stream key or filename..."
+        placeholder="Search stream key, title, description, or filename..."
         onkeyup="filterClips()"
     >
+
     <button id="sortBtn" onclick="toggleSort()">
-        Sort: Newest → Oldest
+        Sort: Newest â†’ Oldest
     </button>
+
 </div>
 
 <div class="stats">
@@ -298,21 +472,33 @@ button:hover {
 </div>
 
 <div class="grid" id="clipGrid">
+
 <?php foreach ($data as $clip): ?>
+
 <?php $clipUrl = "/clip/" . rawurlencode($clip["name"]); ?>
 
 <div
     class="card"
+
     data-name="<?php echo strtolower($clip["name"]); ?>"
     data-stream="<?php echo strtolower($clip["streamKey"]); ?>"
+    data-title="<?php echo strtolower($clip["title"]); ?>"
+    data-description="<?php echo strtolower($clip["description"]); ?>"
     data-mtime="<?php echo $clip["mtime"]; ?>"
+
     <?php if ($clip["playable"]): ?>
-    ondblclick="openPlayer('<?php echo $clipUrl; ?>', 'video/<?php echo $clip['ext']; ?>')"
+    ondblclick="openPlayer(
+        '<?php echo $clipUrl; ?>',
+        'video/<?php echo $clip['ext']; ?>',
+        <?php echo intval($clip['clipStart']); ?>,
+        <?php echo intval($clip['clipEnd']); ?>
+    )"
     title="Double click to play"
     <?php endif; ?>
 >
 
     <div class="preview">
+
         <video
             muted
             preload="metadata"
@@ -321,128 +507,308 @@ button:hover {
             onmouseenter="this.play()"
             onmouseleave="this.pause(); this.currentTime = 0.5;"
         >
-            <source src="<?php echo $clipUrl; ?>#t=0.5" type="video/<?php echo $clip["ext"]; ?>">
+            <source
+                src="<?php echo $clipUrl; ?>#t=<?php echo max(0, $clip['clipStart']); ?>"
+                type="video/<?php echo $clip["ext"]; ?>"
+            >
         </video>
+
         <div class="badge">
             <?php echo strtoupper($clip["ext"]); ?>
         </div>
+
+        <?php if ($clip["edited"]): ?>
+        <div class="edited-badge">
+            âœ‚ Edited Clip
+        </div>
+        <?php endif; ?>
+
     </div>
 
     <div class="info">
+
         <div class="stream">
             <?php echo htmlspecialchars($clip["streamKey"]); ?>
         </div>
 
         <div class="filename">
-            <?php echo htmlspecialchars($clip["name"]); ?>
+            <?php echo htmlspecialchars($clip["title"]); ?>
         </div>
 
+        <?php if ($clip["edited"]): ?>
+        <div class="realfile">
+            <?php echo htmlspecialchars($clip["name"]); ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($clip["description"])): ?>
+        <div class="description">
+            <?php echo nl2br(htmlspecialchars($clip["description"])); ?>
+        </div>
+        <?php endif; ?>
+
         <div class="meta">
-            <span><?php echo round($clip["size"] / 1024 / 1024, 2); ?> MB</span>
-            <span><?php echo date("Y-m-d H:i:s", $clip["mtime"]); ?></span>
+
+            <span>
+                <?php echo round($clip["size"] / 1024 / 1024, 2); ?> MB
+            </span>
+
+            <span>
+                <?php echo date("Y-m-d H:i:s", $clip["mtime"]); ?>
+            </span>
+
+            <?php if ($clip["edited"]): ?>
+            <span>
+                Clip:
+                <?php echo formatTime($clip["clipStart"]); ?>
+                â†’
+                <?php echo formatTime($clip["clipEnd"]); ?>
+            </span>
+
+            <span>
+                Length:
+                <?php echo formatTime($clip["clipLength"]); ?>
+            </span>
+            <?php endif; ?>
+
         </div>
 
         <div class="actions">
+
             <?php if ($clip["playable"]): ?>
-                <button class="btn" onclick="openPlayer('<?php echo $clipUrl; ?>', 'video/<?php echo $clip['ext']; ?>')">
+
+                <button
+                    class="btn"
+                    onclick="openPlayer(
+                        '<?php echo $clipUrl; ?>',
+                        'video/<?php echo $clip['ext']; ?>',
+                        <?php echo intval($clip['clipStart']); ?>,
+                        <?php echo intval($clip['clipEnd']); ?>
+                    )"
+                >
                     Open Player
                 </button>
+
+                <a
+                    class="btn"
+                    href="/clips/trimmer.php?file=<?php echo rawurlencode($clip["name"]); ?>"
+                >
+                    Clip Trimmer
+                </a>
+
             <?php else: ?>
-                <a class="btn" href="<?php echo $clipUrl; ?>" download>
+
+                <a
+                    class="btn"
+                    href="<?php echo $clipUrl; ?>"
+                    download
+                >
                     Download
                 </a>
+
             <?php endif; ?>
 
-            <button class="btn" onclick="copyClipURL('<?php echo $clipUrl; ?>')">
+            <button
+                class="btn"
+                onclick="copyClipURL('<?php echo $clipUrl; ?>')"
+            >
                 Copy URL
             </button>
+
         </div>
+
     </div>
+
 </div>
+
 <?php endforeach; ?>
+
 </div>
 
 <?php if (count($data) === 0): ?>
+
 <div class="empty">
+
     <h2>No clips found</h2>
+
     <p>Your generated clips will appear here.</p>
+
 </div>
+
 <?php endif; ?>
 
 <div id="playerModal" class="vjs-modal">
+
     <div class="vjs-modal-content">
-        <button class="vjs-modal-close" onclick="closePlayer()">×</button>
-        <video id="my-video" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" width="960" height="540">
-            <p class="vjs-no-js">To view this video please enable JavaScript</p>
+
+        <button
+            class="vjs-modal-close"
+            onclick="closePlayer()"
+        >
+            Ã—
+        </button>
+
+        <video
+            id="my-video"
+            class="video-js vjs-default-skin vjs-big-play-centered"
+            controls
+            preload="auto"
+            width="960"
+            height="540"
+        >
+            <p class="vjs-no-js">
+                To view this video please enable JavaScript
+            </p>
         </video>
+
     </div>
+
 </div>
 
 <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 
 <script>
 let newestFirst = true;
+
 let player = videojs('my-video');
 
-function openPlayer(src, type) {
+let activeClipEnd = null;
+
+function openPlayer(src, type, startTime = 0, endTime = 0) {
+
     document.getElementById('playerModal').style.display = 'flex';
-    player.src({ type: type, src: src });
+
+    activeClipEnd = endTime > startTime
+        ? endTime
+        : null;
+
+    player.src({
+        type: type,
+        src: src
+    });
+
     player.ready(function() {
+
+        player.currentTime(startTime);
+
         player.play();
     });
 }
 
+/*
+|--------------------------------------------------------------------------
+| Stop playback at clip end
+|--------------------------------------------------------------------------
+*/
+player.on('timeupdate', function() {
+
+    if (
+        activeClipEnd !== null &&
+        player.currentTime() >= activeClipEnd
+    ) {
+
+        player.pause();
+
+        player.currentTime(activeClipEnd);
+    }
+});
+
 function closePlayer() {
+
     player.pause();
+
     document.getElementById('playerModal').style.display = 'none';
+
+    activeClipEnd = null;
 }
 
 document.getElementById('playerModal').addEventListener('click', function(e) {
-    if (e.target === this) closePlayer();
+
+    if (e.target === this) {
+        closePlayer();
+    }
 });
 
 function toggleSort() {
+
     const grid = document.getElementById('clipGrid');
-    const cards = Array.from(grid.querySelectorAll('.card'));
+
+    const cards = Array.from(
+        grid.querySelectorAll('.card')
+    );
 
     cards.sort((a, b) => {
+
         const at = parseInt(a.dataset.mtime);
         const bt = parseInt(b.dataset.mtime);
-        return newestFirst ? at - bt : bt - at;
+
+        return newestFirst
+            ? at - bt
+            : bt - at;
     });
 
     grid.innerHTML = '';
-    cards.forEach(card => grid.appendChild(card));
+
+    cards.forEach(card => {
+        grid.appendChild(card);
+    });
+
     newestFirst = !newestFirst;
 
     document.getElementById('sortBtn').textContent =
-        newestFirst ? 'Sort: Newest → Oldest' : 'Sort: Oldest → Newest';
+        newestFirst
+            ? 'Sort: Newest â†’ Oldest'
+            : 'Sort: Oldest â†’ Newest';
 }
 
 function filterClips() {
-    const query = document.getElementById('searchBox').value.toLowerCase();
+
+    const query = document
+        .getElementById('searchBox')
+        .value
+        .toLowerCase();
+
     const cards = document.querySelectorAll('.card');
+
     let visible = 0;
 
     cards.forEach(card => {
+
         const name = card.dataset.name;
         const stream = card.dataset.stream;
-        const match = name.includes(query) || stream.includes(query);
+        const title = card.dataset.title;
+        const description = card.dataset.description;
+
+        const match =
+            name.includes(query) ||
+            stream.includes(query) ||
+            title.includes(query) ||
+            description.includes(query);
 
         card.style.display = match ? '' : 'none';
-        if (match) visible++;
+
+        if (match) {
+            visible++;
+        }
     });
 
     document.getElementById('clipCount').textContent = visible;
 }
 
 async function copyClipURL(path) {
+
     const url = window.location.origin + path;
+
     try {
+
         await navigator.clipboard.writeText(url);
-        alert('Copied URL:\n' + url);
+
+        alert('Copied URL:\\n' + url);
+
     } catch(err) {
+
         console.error(err);
+
         alert('Failed to copy URL.');
     }
 }
@@ -450,3 +816,4 @@ async function copyClipURL(path) {
 
 </body>
 </html>
+

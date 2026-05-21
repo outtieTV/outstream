@@ -1,5 +1,5 @@
 # outstream
-Outstream is an attempt at an nginx web server with rtmp and vod modules. Now with vods and clips!.<br />
+Outstream is an attempt at an nginx web server with rtmp and vod modules. Now with vods and clips!<br />
 <br />
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/311ed9af-44a0-43c9-a439-e19cd62dd4c7" />
 <img width="1920" height="1080" alt="image-1" src="https://github.com/user-attachments/assets/e3335145-52ba-48ea-b63e-447209c940e2" />

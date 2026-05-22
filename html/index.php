@@ -1,5 +1,9 @@
 <?php
-$streamKey = 'test';
+require_once __DIR__ . '/config.php';
+$config = load_config();
+
+// Load the default from JSON
+$streamKey = $config['streamKey']; 
 
 if (isset($_GET['streamkey']) && is_string($_GET['streamkey'])) {
     $streamKey = preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['streamkey']);

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/config.php';
+$config = load_config();
 header('Content-Type: application/json');
 
 // Sanitize stream key
@@ -102,12 +104,17 @@ $cmd = sprintf(
 exec($cmd, $output, $returnStatus);
 
 if ($returnStatus === 0) {
+    // Read the base URL from the JSON config
+    $downloadBaseUrl = $config['downloadBaseUrl']; 
+
     echo json_encode([
         'success' => true,
         'message' => 'Clip saved successfully!',
         'file' => $clipName,
+        'url' => $downloadBaseUrl . $clipName,
         'duration' => $clipLength
     ]);
+    exit;
 } else {
     echo json_encode([
         'success' => false,

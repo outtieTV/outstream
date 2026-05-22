@@ -166,3 +166,4 @@ echo json_encode([
     "message" => "Metadata saved successfully.",
     "json" => basename($jsonPath)
 ]);
+

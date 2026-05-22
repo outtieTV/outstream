@@ -2,8 +2,7 @@
 require_once __DIR__ . '/config.php';
 $config = load_config();
 
-// Load the default from JSON
-$streamKey = $config['streamKey']; 
+$streamKey = $config['streamKey'];
 
 if (isset($_GET['streamkey']) && is_string($_GET['streamkey'])) {
     $streamKey = preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['streamkey']);
@@ -15,7 +14,6 @@ $finalSource =
     rawurlencode($streamKey) .
     '/index.m3u8';
 
-/* Scan /var/www/hls for valid stream directories */
 $hlsPath = '/var/www/hls';
 $directories = [];
 
@@ -32,438 +30,550 @@ if (is_dir($hlsPath)) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Stream - <?= htmlspecialchars($streamKey) ?></title>
-
-    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html,
-        body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: #050505;
-            font-family: "Segoe UI", sans-serif;
-            color: white;
-        }
-
-        body {
-            position: relative;
-        }
-
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            background: radial-gradient(circle at center, #1f2937 0%, #050505 70%);
-            filter: blur(50px);
-            opacity: 0.4;
-            z-index: 0;
-        }
-
-        .video-container {
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-        }
-
-        .video-js {
-            width: 100% !important;
-            height: 100% !important;
-            background: #000;
-        }
-
-        .video-js .vjs-progress-control {
-            display: none !important;
-        }
-
-        .control-panel {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 100;
-
-            display: flex;
-            align-items: center;
-            gap: 12px;
-
-            padding: 12px 18px;
-            border-radius: 999px;
-
-            background: rgba(15, 15, 15, 0.72);
-            backdrop-filter: blur(16px);
-
-            border: 1px solid rgba(255,255,255,0.08);
-
-            transition:
-                opacity 0.3s ease,
-                transform 0.3s ease;
-        }
-
-        .control-panel.hidden {
-            opacity: 0;
-            transform: translateX(-50%) translateY(-20px);
-            pointer-events: none;
-        }
-
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 140px;
-        }
-
-        .live-dot {
-            width: 10px;
-            height: 10px;
-            background: #ef4444;
-            border-radius: 50%;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(1);
-                opacity: 1;
-            }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<title>Live Stream - <?= htmlspecialchars($streamKey) ?></title>
+
+<link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --panel-bg: rgba(15,15,15,0.82);
+    --panel-border: rgba(255,255,255,0.08);
+    --hover-bg: rgba(255,255,255,0.12);
+    --blue: #2563eb;
+    --blue-hover: #1d4ed8;
+    --red: #ef4444;
+    --green: #10b981;
+    --yellow: #f59e0b;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050505;
+    font-family: "Segoe UI", sans-serif;
+    color: white;
+}
+
+body {
+    position: relative;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(circle at top, #1f2937 0%, #050505 70%);
+    filter: blur(50px);
+    opacity: 0.45;
+    z-index: 0;
+}
+
+.video-container {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: #000;
+}
+
+.video-js {
+    width: 100% !important;
+    height: 100% !important;
+    background: #000;
+}
+
+.video-js .vjs-progress-control {
+    display: none !important;
+}
+
+/* CONTROL PANEL */
+
+.control-panel {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+
+    width: min(96vw, 1050px);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+
+    padding: 14px;
+
+    border-radius: 24px;
+
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+
+    border: 1px solid var(--panel-border);
+
+    transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
+}
+
+.control-panel.hidden {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+    pointer-events: none;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px;
+}
+
+.live-dot {
+    width: 10px;
+    height: 10px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.4);
+        opacity: 0.6;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.status-text {
+    font-size: 14px;
+    font-weight: 700;
+}
 
-            50% {
-                transform: scale(1.4);
-                opacity: 0.6;
-            }
+.stream-input {
+    flex: 1;
+    min-width: 180px;
 
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
+    padding: 12px 16px;
 
-        .status-text {
-            font-size: 14px;
-            font-weight: 600;
-        }
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.12);
 
-        .stream-input {
-            width: 240px;
-            padding: 10px 16px;
+    background: rgba(255,255,255,0.06);
 
-            border-radius: 999px;
-            border: 1px solid rgba(255,255,255,0.12);
+    color: white;
+    outline: none;
 
-            background: rgba(255,255,255,0.06);
+    transition: 0.2s ease;
+}
 
-            color: white;
-            outline: none;
+.stream-input:focus {
+    border-color: #3b82f6;
+    background: rgba(255,255,255,0.1);
+    box-shadow: 0 0 15px rgba(59,130,246,0.35);
+}
 
-            transition: 0.2s ease;
-        }
+.btn {
+    border: none;
+    border-radius: 999px;
 
-        .stream-input:focus {
-            border-color: #3b82f6;
-            background: rgba(255,255,255,0.1);
-            box-shadow: 0 0 15px rgba(59,130,246,0.35);
-        }
+    padding: 11px 16px;
 
-        .btn {
-            border: none;
-            border-radius: 999px;
-
-            padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 700;
 
-            font-size: 14px;
-            font-weight: 600;
+    cursor: pointer;
 
-            cursor: pointer;
+    color: white;
 
-            transition: 0.2s ease;
-        }
+    transition:
+        background 0.2s ease,
+        transform 0.15s ease;
+}
 
-        .btn-primary {
-            background: #2563eb;
-            color: white;
-        }
+.btn:hover {
+    transform: translateY(-1px);
+}
 
-        .btn-primary:hover {
-            background: #1d4ed8;
-        }
+.btn-primary {
+    background: var(--blue);
+}
 
-        .btn-secondary {
-            background: rgba(255,255,255,0.08);
-            color: white;
-        }
+.btn-primary:hover {
+    background: var(--blue-hover);
+}
 
-        .btn-secondary:hover {
-            background: rgba(255,255,255,0.15);
-        }
+.btn-danger {
+    background: rgba(239,68,68,0.2);
+    border: 1px solid rgba(239,68,68,0.4);
+    color: #f87171;
+}
 
-        .btn-sm {
-            padding: 4px 10px;
-            font-size: 12px;
-            border-radius: 6px;
-        }
+.btn-danger:hover {
+    background: rgba(239,68,68,0.35);
+}
 
-        .btn-danger {
-            background: rgba(239, 68, 68, 0.2);
-            color: #f87171;
-            border: 1px solid rgba(239, 68, 68, 0.4);
-        }
+.btn-secondary {
+    background: rgba(255,255,255,0.08);
+}
 
-        .btn-danger:hover {
-            background: rgba(239, 68, 68, 0.4);
-        }
+.btn-secondary:hover {
+    background: rgba(255,255,255,0.15);
+}
 
-        .center-overlay {
-            position: absolute;
-            inset: 0;
+.btn-sm {
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+}
 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
+/* SIDEBAR */
 
-            gap: 14px;
+.sidebar-toggle {
+    position: fixed;
+    top: 18px;
+    left: 18px;
 
-            z-index: 50;
+    width: 48px;
+    height: 48px;
 
-            background: rgba(0,0,0,0.55);
-            backdrop-filter: blur(8px);
+    z-index: 110;
 
-            opacity: 0;
-            pointer-events: none;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
 
-            transition: 0.25s ease;
-        }
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
 
-        .center-overlay.visible {
-            opacity: 1;
-            pointer-events: auto;
-        }
+    color: white;
 
-        .spinner {
-            width: 52px;
-            height: 52px;
+    cursor: pointer;
 
-            border: 4px solid rgba(255,255,255,0.15);
-            border-top-color: #3b82f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
-            border-radius: 50%;
+    font-size: 22px;
+}
 
-            animation: spin 1s linear infinite;
-        }
+.sidebar-toggle:hover {
+    background: rgba(255,255,255,0.12);
+}
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
+.directory-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
 
-        .overlay-text {
-            font-size: 18px;
-            font-weight: 600;
-            color: white;
-        }
+    width: min(300px, 82vw);
 
-        .stats-bar {
-            position: fixed;
-            bottom: 16px;
-            left: 50%;
-            transform: translateX(-50%);
+    z-index: 109;
 
-            z-index: 100;
+    background: rgba(10,10,10,0.9);
+    backdrop-filter: blur(20px);
 
-            display: flex;
-            align-items: center;
-            gap: 16px;
+    border-right: 1px solid var(--panel-border);
 
-            padding: 10px 16px;
+    padding: 85px 18px 18px;
 
-            background: rgba(15,15,15,0.72);
-            backdrop-filter: blur(12px);
+    overflow-y: auto;
 
-            border-radius: 999px;
-            border: 1px solid rgba(255,255,255,0.08);
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+}
 
-            font-size: 13px;
-            color: #d1d5db;
-        }
+.directory-sidebar.open {
+    transform: translateX(0);
+}
 
-        .stats-item {
-            white-space: nowrap;
-        }
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 
-        .recent-streams {
-            position: fixed;
-            right: 20px;
-            top: 90px;
+    margin-bottom: 16px;
+}
 
-            z-index: 90;
+.panel-header h3 {
+    font-size: 16px;
+}
 
-            width: 260px;
+.directory-item,
+.recent-item {
+    padding: 12px;
+    margin-bottom: 10px;
 
-            background: rgba(15,15,15,0.75);
-            backdrop-filter: blur(16px);
+    border-radius: 14px;
 
-            border-radius: 20px;
+    background: rgba(255,255,255,0.05);
 
-            border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
 
-            padding: 16px;
-        }
+    transition: background 0.2s ease;
 
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
+    word-break: break-word;
+}
 
-        .panel-header h3 {
-            font-size: 15px;
-        }
+.directory-item:hover,
+.recent-item:hover {
+    background: var(--hover-bg);
+}
 
-        .recent-item,
-        .directory-item {
-            padding: 10px 12px;
-            margin-bottom: 8px;
+.empty-msg {
+    color: #9ca3af;
+    font-size: 13px;
+    text-align: center;
+    padding: 10px 0;
+}
 
-            border-radius: 12px;
+/* RECENT STREAMS */
 
-            background: rgba(255,255,255,0.05);
+.recent-streams {
+    position: fixed;
+    right: 16px;
+    top: 92px;
 
-            cursor: pointer;
+    width: 280px;
+    max-height: calc(100vh - 120px);
 
-            transition: 0.2s ease;
-            word-break: break-all;
-        }
+    overflow-y: auto;
 
-        .recent-item:hover,
-        .directory-item:hover {
-            background: rgba(255,255,255,0.12);
-        }
+    z-index: 90;
 
-        .directory-sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 280px;
+    padding: 16px;
 
-            z-index: 95;
+    border-radius: 22px;
 
-            background: rgba(15, 15, 15, 0.8);
-            backdrop-filter: blur(20px);
+    background: var(--panel-bg);
+    backdrop-filter: blur(18px);
 
-            border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--panel-border);
+}
 
-            padding: 80px 20px 20px 20px;
+/* OVERLAY */
 
-            transform: translateX(-100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.center-overlay {
+    position: absolute;
+    inset: 0;
 
-            overflow-y: auto;
-        }
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
 
-        .directory-sidebar.open {
-            transform: translateX(0);
-        }
+    gap: 16px;
 
-        .sidebar-toggle {
-            position: fixed;
-            left: 20px;
-            top: 25px;
+    z-index: 50;
 
-            z-index: 105;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(8px);
 
-            background: rgba(15, 15, 15, 0.72);
-            backdrop-filter: blur(16px);
+    opacity: 0;
+    pointer-events: none;
 
-            border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: 0.25s ease;
+}
 
-            color: white;
+.center-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
 
-            width: 44px;
-            height: 44px;
+.spinner {
+    width: 54px;
+    height: 54px;
 
-            border-radius: 50%;
+    border-radius: 50%;
 
-            cursor: pointer;
+    border: 4px solid rgba(255,255,255,0.15);
+    border-top-color: #3b82f6;
 
-            display: flex;
-            align-items: center;
-            justify-content: center;
+    animation: spin 1s linear infinite;
+}
 
-            font-size: 20px;
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
 
-            transition: background 0.2s;
-        }
+.overlay-text {
+    font-size: 18px;
+    font-weight: 700;
+}
 
-        .sidebar-toggle:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
+/* STATS */
 
-        .directory-list {
-            margin-top: 15px;
-        }
+.stats-bar {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
 
-        .empty-msg {
-            font-size: 13px;
-            color: #9ca3af;
-            font-style: italic;
-            text-align: center;
-            margin-top: 10px;
-        }
+    z-index: 100;
 
-        @media (max-width: 900px) {
-            .control-panel {
-                width: calc(100% - 20px);
-                flex-wrap: wrap;
-                justify-content: center;
-                border-radius: 24px;
-                left: 50%;
-                top: 80px;
-            }
+    width: min(95vw, 760px);
 
-            .sidebar-toggle {
-                top: 15px;
-                left: 15px;
-            }
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    flex-wrap: wrap;
 
-            .stream-input {
-                width: 100%;
-            }
+    padding: 12px 18px;
 
-            .recent-streams,
-            .directory-sidebar {
-                display: none;
-            }
+    border-radius: 24px;
 
-            .stats-bar {
-                flex-wrap: wrap;
-                width: calc(100% - 20px);
-                justify-content: center;
-                border-radius: 18px;
-            }
-        }
-    </style>
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+
+    border: 1px solid var(--panel-border);
+
+    color: #d1d5db;
+    font-size: 13px;
+}
+
+.stats-item {
+    white-space: nowrap;
+}
+
+/* TABLETS */
+
+@media (max-width: 1100px) {
+
+    .recent-streams {
+        width: 240px;
+    }
+
+    .control-panel {
+        top: 14px;
+        width: calc(100vw - 24px);
+    }
+}
+
+/* MOBILE */
+
+@media (max-width: 768px) {
+
+    html,
+    body {
+        overflow: hidden;
+    }
+
+    .control-panel {
+        top: auto;
+        bottom: 82px;
+
+        left: 50%;
+        transform: translateX(-50%);
+
+        width: calc(100vw - 16px);
+
+        padding: 12px;
+        gap: 8px;
+
+        border-radius: 22px;
+    }
+
+    .control-panel.hidden {
+        opacity: 0;
+        transform: translateX(-50%) translateY(25px);
+    }
+
+    .stream-input {
+        width: 100%;
+        min-width: unset;
+    }
+
+    .btn {
+        flex: 1 1 calc(50% - 8px);
+        min-width: 120px;
+    }
+
+    .sidebar-toggle {
+        top: 14px;
+        left: 14px;
+    }
+
+    .recent-streams {
+        display: none;
+    }
+
+    .stats-bar {
+        bottom: 12px;
+        width: calc(100vw - 16px);
+
+        gap: 10px;
+
+        padding: 10px 14px;
+
+        font-size: 12px;
+    }
+
+    .stats-item {
+        flex: 1 1 calc(50% - 10px);
+        text-align: center;
+    }
+}
+
+/* VERY SMALL MOBILE */
+
+@media (max-width: 480px) {
+
+    .btn {
+        min-width: unset;
+        font-size: 13px;
+        padding: 10px 12px;
+    }
+
+    .status {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .overlay-text {
+        font-size: 16px;
+        text-align: center;
+        padding: 0 20px;
+    }
+
+    .stats-item {
+        flex: 1 1 100%;
+    }
+}
+</style>
 </head>
+
 <body>
 
-<button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Stream Directory">
-    ☰
+<button
+    class="sidebar-toggle"
+    onclick="toggleSidebar()"
+    title="Toggle Stream Directory"
+>
+☰
 </button>
 
 <div class="directory-sidebar" id="directorySidebar">
@@ -477,7 +587,7 @@ if (is_dir($hlsPath)) {
         <?php if (empty($directories)): ?>
 
             <div class="empty-msg">
-                No stream directories found in /var/www/hls
+                No stream directories found
             </div>
 
         <?php else: ?>
@@ -503,7 +613,9 @@ if (is_dir($hlsPath)) {
 
     <div class="status">
         <div class="live-dot"></div>
-        <div class="status-text" id="statusText">CONNECTING</div>
+        <div class="status-text" id="statusText">
+            CONNECTING
+        </div>
     </div>
 
     <input
@@ -520,21 +632,31 @@ if (is_dir($hlsPath)) {
 
     <button
         class="btn btn-primary"
-        style="background: #ef4444;"
+        style="background:#ef4444;"
         onclick="takeClip()"
     >
         Clip
     </button>
 
-    <button class="btn btn-secondary" onclick="toggleMute()">
-        Mute
+    <button
+        class="btn btn-secondary"
+        id="muteBtn"
+        onclick="toggleMute()"
+    >
+        Unmute
     </button>
 
-    <button class="btn btn-secondary" onclick="toggleFullscreen()">
+    <button
+        class="btn btn-secondary"
+        onclick="toggleFullscreen()"
+    >
         Fullscreen
     </button>
 
-    <button class="btn btn-secondary" onclick="enablePIP()">
+    <button
+        class="btn btn-secondary"
+        onclick="enablePIP()"
+    >
         PiP
     </button>
 
@@ -552,11 +674,13 @@ if (is_dir($hlsPath)) {
     ></video>
 
     <div class="center-overlay visible" id="overlay">
+
         <div class="spinner"></div>
 
         <div class="overlay-text" id="overlayText">
             Connecting to stream...
         </div>
+
     </div>
 
 </div>
@@ -565,7 +689,9 @@ if (is_dir($hlsPath)) {
 
     <div class="stats-item">
         Stream:
-        <span id="currentStream"><?= htmlspecialchars($streamKey) ?></span>
+        <span id="currentStream">
+            <?= htmlspecialchars($streamKey) ?>
+        </span>
     </div>
 
     <div class="stats-item">
@@ -588,11 +714,16 @@ if (is_dir($hlsPath)) {
 <div class="recent-streams">
 
     <div class="panel-header">
+
         <h3>Recent Streams</h3>
 
-        <button class="btn btn-sm btn-danger" onclick="clearRecent()">
+        <button
+            class="btn btn-sm btn-danger"
+            onclick="clearRecent()"
+        >
             Clear
         </button>
+
     </div>
 
     <div id="recentList"></div>
@@ -606,9 +737,14 @@ const statusText = document.getElementById('statusText');
 const streamInput = document.getElementById('streamKeyInput');
 const directorySidebar = document.getElementById('directorySidebar');
 
+const muteBtn = document.getElementById('muteBtn');
+const volumeText = document.getElementById('volume');
+
 let controlsTimeout = null;
 
 const player = videojs('video', {
+    fluid: true,
+
     html5: {
         vhs: {
             overrideNative: true
@@ -625,6 +761,10 @@ function toggleSidebar() {
 function loadDirectoryStream(streamKey) {
     streamInput.value = streamKey;
     loadStream(streamKey);
+
+    if (window.innerWidth <= 768) {
+        directorySidebar.classList.remove('open');
+    }
 }
 
 function showOverlay(text) {
@@ -641,8 +781,23 @@ function setStatus(text, color = '#10b981') {
     statusText.style.color = color;
 }
 
+function updateMuteButton() {
+
+    const muted = player.muted();
+
+    muteBtn.textContent = muted
+        ? 'Unmute'
+        : 'Mute';
+
+    volumeText.textContent = muted
+        ? 'Muted'
+        : Math.round(player.volume() * 100) + '%';
+}
+
 player.on('loadedmetadata', () => {
+
     setStatus('LIVE', '#10b981');
+
     hideOverlay();
 
     const quality = player.videoHeight();
@@ -651,15 +806,21 @@ player.on('loadedmetadata', () => {
         document.getElementById('resolution').textContent =
             quality + 'p';
     }
+
+    updateMuteButton();
 });
 
+player.on('volumechange', updateMuteButton);
+
 player.on('error', () => {
+
     const error = player.error();
 
     console.error('Video.js Error:', error);
 
     setStatus('OFFLINE', '#ef4444');
-    showOverlay('Stream offline or data missing');
+
+    showOverlay('Stream offline or unavailable');
 });
 
 function loadStream(streamKey) {
@@ -700,6 +861,7 @@ function loadStream(streamKey) {
 }
 
 function changeStream() {
+
     const key = streamInput.value.trim();
 
     if (key) {
@@ -713,13 +875,16 @@ function takeClip() {
         document.getElementById('currentStream').textContent;
 
     if (!streamKey || streamKey === 'test') {
+
         alert('Cannot clip an empty or default test stream.');
+
         return;
     }
 
     setStatus('CLIPPING...', '#ef4444');
 
     const formData = new FormData();
+
     formData.append('streamkey', streamKey);
 
     fetch('clip.php', {
@@ -730,13 +895,16 @@ function takeClip() {
     .then(data => {
 
         if (data.success) {
+
             alert(
-                'Success! ' +
+                'Success!\n\n' +
                 data.message +
                 '\nSaved as: ' +
                 data.file
             );
+
         } else {
+
             alert('Clip failed: ' + data.error);
         }
 
@@ -796,7 +964,9 @@ function renderRecent() {
         div.textContent = stream;
 
         div.onclick = () => {
+
             streamInput.value = stream;
+
             loadStream(stream);
         };
 
@@ -805,20 +975,17 @@ function renderRecent() {
 }
 
 function clearRecent() {
+
     localStorage.removeItem('recentStreams');
+
     renderRecent();
 }
 
 function toggleMute() {
 
-    const isMuted = player.muted();
+    player.muted(!player.muted());
 
-    player.muted(!isMuted);
-
-    document.getElementById('volume').textContent =
-        player.muted()
-            ? 'Muted'
-            : Math.round(player.volume() * 100) + '%';
+    updateMuteButton();
 }
 
 function toggleFullscreen() {
@@ -837,12 +1004,16 @@ async function enablePIP() {
     try {
 
         if (document.pictureInPictureElement) {
+
             await document.exitPictureInPicture();
+
         } else {
+
             await videoEl.requestPictureInPicture();
         }
 
     } catch(err) {
+
         console.log(err);
     }
 }
@@ -902,11 +1073,14 @@ function showControls() {
     clearTimeout(controlsTimeout);
 
     controlsTimeout = setTimeout(() => {
+
         controls.classList.add('hidden');
-    }, 3000);
+
+    }, window.innerWidth <= 768 ? 2200 : 3200);
 }
 
 document.addEventListener('mousemove', showControls);
+document.addEventListener('touchstart', showControls);
 
 showControls();
 
@@ -937,6 +1111,8 @@ setInterval(() => {
 loadStream('<?= htmlspecialchars($streamKey) ?>');
 
 renderRecent();
+
+updateMuteButton();
 </script>
 
 </body>

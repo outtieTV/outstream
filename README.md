@@ -4,7 +4,17 @@ Outstream is an attempt at an nginx web server with rtmp and vod modules. Now wi
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/311ed9af-44a0-43c9-a439-e19cd62dd4c7" />
 <img width="1920" height="1080" alt="image-1" src="https://github.com/user-attachments/assets/e3335145-52ba-48ea-b63e-447209c940e2" />
 <img width="1920" height="1080" alt="067D4EBA-9172-4944-89B6-FE351FC94385" src="https://github.com/user-attachments/assets/8d092faa-3902-41fa-8e4e-d85a32701ac6" />
-
+<br />
+Features:
+- rtmp livestreaming via OBS to http
+- vods
+- clips
+- autoconverstion from flv to mp4
+- vod and clip metadata editing
+- clip trimming
+- download vods and clips with ease
+- basic streamkey authentication (edit auth.json to use)<br />
+<br />
 install vlc media player<br />
 install obs studio<br />
 <br />

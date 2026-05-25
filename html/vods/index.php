@@ -14,9 +14,7 @@ $data = [];
 $basenameMap = [];
 
 foreach ($files as $file) {
-
     $path = $dir . '/' . $file;
-
     $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
 
     if (!in_array($ext, $allowed)) {
@@ -31,18 +29,23 @@ foreach ($files as $file) {
 
     $basenameMap[$baseName][] = $ext;
 
+    $category = "";
     $streamKey = "unknown";
 
-    if (preg_match('/^([a-zA-Z0-9_-]+)_archive/i', $file, $matches)) {
+    // UPDATED: Look for nested flat structure: category_streamkey_archive
+    if (preg_match('/^([a-zA-Z0-9_\-]+)_([a-zA-Z0-9_\-]+)_archive/i', $baseName, $matches)) {
+        $category = strtolower($matches[1]);
+        $streamKey = strtolower($matches[2]);
+    } 
+    // Fallback logic for older single flat format files (streamkey_archive)
+    elseif (preg_match('/^([a-zA-Z0-9_\-]+)_archive/i', $file, $matches)) {
         $streamKey = strtolower($matches[1]);
     }
 
     $jsonPath = $dir . '/' . $baseName . '.json';
-
     $metadata = [];
 
     if (file_exists($jsonPath)) {
-
         $decoded = json_decode(file_get_contents($jsonPath), true);
 
         if (is_array($decoded)) {
@@ -53,23 +56,20 @@ foreach ($files as $file) {
     $data[] = [
         "name" => $file,
         "baseName" => $baseName,
+        "category" => $category,
         "streamKey" => $streamKey,
         "mtime" => filemtime($path),
         "size" => filesize($path),
         "ext" => $ext,
         "playable" => in_array($ext, $nativePlayable),
-
         "title" => $metadata["title"] ?? $file,
         "description" => $metadata["description"] ?? ""
     ];
 }
 
 foreach ($data as &$item) {
-
-    $item["transcoding"] =
-        count($basenameMap[$item["baseName"]]) > 1;
+    $item["transcoding"] = count($basenameMap[$item["baseName"]]) > 1;
 }
-
 unset($item);
 
 usort($data, function($a, $b) {
@@ -79,7 +79,6 @@ usort($data, function($a, $b) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -88,7 +87,6 @@ usort($data, function($a, $b) {
 <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
 
 <style>
-
 :root {
     --bg: #0b0f14;
     --card: #161b22;
@@ -117,8 +115,7 @@ h1 {
     margin-bottom: 20px;
 }
 
-input,
-button {
+input, button {
     background: #161b22;
     color: white;
     border: 1px solid #30363d;
@@ -191,6 +188,10 @@ button:hover {
     margin-bottom: 6px;
 }
 
+.stream .cat-prefix {
+    color: #a7f3d0;
+}
+
 .title {
     font-size: 20px;
     font-weight: bold;
@@ -253,8 +254,7 @@ button:hover {
     border-collapse: collapse;
 }
 
-.list-view th,
-.list-view td {
+.list-view th, .list-view td {
     padding: 12px;
     border-bottom: 1px solid var(--border);
 }
@@ -288,8 +288,7 @@ button:hover {
 
 .vjs-modal-close {
     position: absolute;
-    top: 10px;
-    right: 15px;
+    top: 10px; right: 15px;
     z-index: 10000;
     font-size: 28px;
     color: white;
@@ -299,24 +298,20 @@ button:hover {
 }
 
 @media (max-width: 700px) {
-
     .grid-view {
         grid-template-columns: 1fr;
     }
-
     body {
         padding: 14px;
     }
 }
-
 </style>
 </head>
 <body>
 
-<h1>📼 VOD Library</h1>
+<h1>📹 VOD Library</h1>
 
 <div class="topbar">
-
     <input
         type="text"
         id="searchBox"
@@ -337,26 +332,22 @@ button:hover {
             List View
         </button>
     </div>
-
 </div>
 
 <div class="stats">
-    Total Videos:
-    <span id="videoCount"><?php echo count($data); ?></span>
+    Total Videos: <span id="videoCount"><?php echo count($data); ?></span>
 </div>
 
 <div id="gridView" class="grid-view">
-
 <?php foreach ($data as $vod): ?>
-
 <?php $vodUrl = "/vod/" . rawurlencode($vod["name"]); ?>
 
 <div
     class="card searchable"
-
     data-name="<?php echo strtolower($vod["name"]); ?>"
     data-title="<?php echo strtolower($vod["title"]); ?>"
     data-stream="<?php echo strtolower($vod["streamKey"]); ?>"
+    data-category="<?php echo strtolower($vod["category"]); ?>"
     data-description="<?php echo strtolower($vod["description"]); ?>"
     data-mtime="<?php echo $vod["mtime"]; ?>"
 
@@ -365,25 +356,22 @@ button:hover {
     title="Double click to play"
     <?php endif; ?>
 >
-
     <div class="preview">
-
         <?php if ($vod["playable"]): ?>
-
         <video muted preload="metadata">
             <source
                 src="<?php echo $vodUrl; ?>#t=2"
                 type="video/<?php echo $vod["ext"]; ?>"
             >
         </video>
-
         <?php endif; ?>
-
     </div>
 
     <div class="info">
-
         <div class="stream">
+            <?php if (!empty($vod["category"])): ?>
+                <span class="cat-prefix"><?php echo htmlspecialchars($vod["category"]); ?></span> / 
+            <?php endif; ?>
             <?php echo htmlspecialchars($vod["streamKey"]); ?>
         </div>
 
@@ -398,7 +386,6 @@ button:hover {
         <?php endif; ?>
 
         <div class="meta">
-
             <span>
                 <?php echo strtoupper($vod["ext"]); ?>
             </span>
@@ -410,20 +397,16 @@ button:hover {
             <span>
                 <?php echo date("Y-m-d H:i:s", $vod["mtime"]); ?>
             </span>
-
         </div>
 
         <div class="actions">
-
             <?php if ($vod["playable"]): ?>
-
             <button
                 class="btn"
                 onclick="event.stopPropagation(); openPlayer('<?php echo $vodUrl; ?>', 'video/<?php echo $vod["ext"]; ?>')"
             >
                 Play
             </button>
-
             <?php endif; ?>
 
             <a
@@ -433,33 +416,24 @@ button:hover {
             >
                 Edit Metadata
             </a>
-
         </div>
 
         <?php if ($vod["transcoding"]): ?>
-
         <div class="warning">
-            ⚠ Multiple filetypes detected for this VOD.<br>
+            ⚠️ Multiple filetypes detected for this VOD.<br>
             Transcoding may still be in progress.
         </div>
-
         <?php endif; ?>
-
     </div>
-
 </div>
-
 <?php endforeach; ?>
-
 </div>
 
 <div id="listView" class="list-view">
-
 <table>
-
 <thead>
 <tr>
-    <th>Stream</th>
+    <th>Category / Stream</th>
     <th>Title</th>
     <th>Type</th>
     <th>Size</th>
@@ -468,17 +442,15 @@ button:hover {
 </thead>
 
 <tbody id="tableBody">
-
 <?php foreach ($data as $vod): ?>
-
 <?php $vodUrl = "/vod/" . rawurlencode($vod["name"]); ?>
 
 <tr
     class="searchable"
-
     data-name="<?php echo strtolower($vod["name"]); ?>"
     data-title="<?php echo strtolower($vod["title"]); ?>"
     data-stream="<?php echo strtolower($vod["streamKey"]); ?>"
+    data-category="<?php echo strtolower($vod["category"]); ?>"
     data-description="<?php echo strtolower($vod["description"]); ?>"
     data-mtime="<?php echo $vod["mtime"]; ?>"
 
@@ -486,8 +458,12 @@ button:hover {
     onclick="openPlayer('<?php echo $vodUrl; ?>', 'video/<?php echo $vod["ext"]; ?>')"
     <?php endif; ?>
 >
-
-    <td><?php echo htmlspecialchars($vod["streamKey"]); ?></td>
+    <td>
+        <?php if (!empty($vod["category"])): ?>
+            <span style="color:#a7f3d0;"><?php echo htmlspecialchars($vod["category"]); ?></span> / 
+        <?php endif; ?>
+        <?php echo htmlspecialchars($vod["streamKey"]); ?>
+    </td>
 
     <td>
         <?php echo htmlspecialchars($vod["title"]); ?>
@@ -495,7 +471,7 @@ button:hover {
         <?php if ($vod["transcoding"]): ?>
             <br>
             <small style="color:#ffcc66;">
-                ⚠ Transcoding in progress
+                ⚠️ Transcoding in progress
             </small>
         <?php endif; ?>
     </td>
@@ -509,52 +485,34 @@ button:hover {
     <td>
         <?php echo date("Y-m-d H:i:s", $vod["mtime"]); ?>
     </td>
-
 </tr>
-
 <?php endforeach; ?>
-
 </tbody>
 </table>
-
 </div>
 
 <div id="playerModal" class="vjs-modal">
-
     <div class="vjs-modal-content">
-
-        <button
-            class="vjs-modal-close"
-            onclick="closePlayer()"
-        >
-            ×
-        </button>
-
+        <button class="vjs-modal-close" onclick="closePlayer()">×</button>
         <video
             id="my-video"
-            class="video-js vjs-default-skin"
+            class="video-js vjs-default-skin vjs-big-play-centered"
             controls
             preload="auto"
             width="960"
             height="540"
         ></video>
-
     </div>
-
 </div>
 
 <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 
 <script>
-
 let newestFirst = true;
-
 let currentView = 'grid';
-
 const player = videojs('my-video');
 
 function openPlayer(src, type) {
-
     document.getElementById('playerModal').style.display = 'flex';
 
     player.src({
@@ -568,90 +526,58 @@ function openPlayer(src, type) {
 }
 
 function closePlayer() {
-
     player.pause();
-
     document.getElementById('playerModal').style.display = 'none';
 }
 
 document.getElementById('playerModal').addEventListener('click', function(e) {
-
     if (e.target === this) {
         closePlayer();
     }
 });
 
 function setView(view) {
-
     currentView = view;
-
-    document.getElementById('gridView').style.display =
-        view === 'grid'
-            ? 'grid'
-            : 'none';
-
-    document.getElementById('listView').style.display =
-        view === 'list'
-            ? 'block'
-            : 'none';
+    document.getElementById('gridView').style.display = view === 'grid' ? 'grid' : 'none';
+    document.getElementById('listView').style.display = view === 'list' ? 'block' : 'none';
 }
 
 function toggleSort() {
-
     const containers = [
         document.getElementById('gridView'),
         document.getElementById('tableBody')
     ];
 
     containers.forEach(container => {
-
         const items = Array.from(container.children);
 
         items.sort((a, b) => {
-
             const at = parseInt(a.dataset.mtime);
             const bt = parseInt(b.dataset.mtime);
-
-            return newestFirst
-                ? at - bt
-                : bt - at;
+            return newestFirst ? at - bt : bt - at;
         });
 
         items.forEach(item => container.appendChild(item));
     });
 
     newestFirst = !newestFirst;
-
-    document.getElementById('sortBtn').textContent =
-        newestFirst
-            ? 'Sort: Newest → Oldest'
-            : 'Sort: Oldest → Newest';
+    document.getElementById('sortBtn').textContent = newestFirst ? 'Sort: Newest → Oldest' : 'Sort: Oldest → Newest';
 }
 
 function filterItems() {
-
-    const query = document
-        .getElementById('searchBox')
-        .value
-        .toLowerCase();
-
+    const query = document.getElementById('searchBox').value.toLowerCase();
     const items = document.querySelectorAll('.searchable');
-
     let visible = 0;
 
     items.forEach(item => {
-
         const text =
-            item.dataset.name +
-            ' ' +
-            item.dataset.title +
-            ' ' +
-            item.dataset.stream +
-            ' ' +
+            item.dataset.name + ' ' +
+            item.dataset.title + ' ' +
+            item.dataset.stream + ' ' +
+            item.dataset.category + ' ' +
             item.dataset.description;
 
         const match = text.includes(query);
-
         item.style.display = match ? '' : 'none';
 
         if (match) visible++;
@@ -661,9 +587,7 @@ function filterItems() {
 }
 
 setView('grid');
-
 </script>
 
 </body>
 </html>
-

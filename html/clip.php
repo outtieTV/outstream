@@ -3,9 +3,9 @@ require_once __DIR__ . '/config.php';
 $config = load_config();
 header('Content-Type: application/json');
 
-// Sanitize stream key
+// Sanitize stream key - CRITICAL CHANGE: Added "\/" to the allowed list to support path categories
 $streamKey = isset($_POST['streamkey'])
-    ? preg_replace('/[^a-zA-Z0-9_\-]/', '', $_POST['streamkey'])
+    ? preg_replace('/[^a-zA-Z0-9_\-\/]/', '', $_POST['streamkey'])
     : '';
 
 if (empty($streamKey)) {
@@ -16,13 +16,15 @@ if (empty($streamKey)) {
     exit;
 }
 
+// Ensure the root clip directory exists
 $clipDir = '/var/www/clip/';
 $hlsBase = 'http://127.0.0.1:9090/hls/';
 
-$playlistUrl =
-    $hlsBase .
-    $streamKey .
-    '/index.m3u8';
+// Properly construct the structural path. E.g., http://127.0.0.1:9090/hls/gaming/outtie_live/index.m3u8
+// Using rawurlencode per segment keeps structural slashes safe
+$segments = explode('/', $streamKey);
+$encodedSegments = array_map('rawurlencode', $segments);
+$playlistUrl = $hlsBase . implode('/', $encodedSegments) . '/index.m3u8';
 
 // Fetch playlist
 $playlist = @file_get_contents($playlistUrl);
@@ -72,8 +74,13 @@ if ($clipLength < 1) {
 // Assumes ~1s fragments
 $segmentCount = $clipLength;
 
-// Generate filename
-$clipName = $streamKey . '_clip_' . time() . '.mp4';
+
+// CRITICAL CHANGE: Flatten the output file name or handle the nested subdirectories.
+// Option A (Highly Recommended): Flatten the slashes into underscores for the output video file
+// This avoids needing to create hundreds of matching folders inside your clips storage layout.
+// Example: "gaming/outtie_live" becomes "gaming_outtie_live_clip_1716558482.mp4"
+$flatStreamKey = str_replace('/', '_', $streamKey);
+$clipName = $flatStreamKey . '_clip_' . time() . '.mp4';
 $outputPath = $clipDir . $clipName;
 
 /*
@@ -111,7 +118,7 @@ if ($returnStatus === 0) {
         'success' => true,
         'message' => 'Clip saved successfully!',
         'file' => $clipName,
-        'url' => $downloadBaseUrl . $clipName,
+        'url' => $downloadBaseUrl . rawurlencode($clipName),
         'duration' => $clipLength
     ]);
     exit;

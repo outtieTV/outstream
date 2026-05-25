@@ -5,24 +5,28 @@ $config = load_config();
 $streamKey = $config['streamKey'];
 
 if (isset($_GET['streamkey']) && is_string($_GET['streamkey'])) {
-    $streamKey = preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['streamkey']);
+    // Adjusted regex to allow the forward slash '/' for structural categories
+    $streamKey = preg_replace('/[^a-zA-Z0-9_\-\/]/', '', $_GET['streamkey']);
 }
 
 $baseUrl = 'http://10.0.0.65:9090/hls/';
-$finalSource =
-    $baseUrl .
-    rawurlencode($streamKey) .
-    '/index.m3u8';
+// We safely concatenate the nested path string
+$finalSource = $baseUrl . $streamKey . '/index.m3u8';
 
 $hlsPath = '/var/www/hls';
 $directories = [];
 
 if (is_dir($hlsPath)) {
-    $dirs = glob($hlsPath . '/*', GLOB_ONLYDIR);
+    // Search 2 levels deep for nested index.m3u8 files (category/streamkey/index.m3u8)
+    $playlists = glob($hlsPath . '/*/*/index.m3u8');
 
-    if ($dirs !== false) {
-        foreach ($dirs as $dir) {
-            $directories[] = basename($dir);
+    if ($playlists !== false) {
+        foreach ($playlists as $playlist) {
+            // Extracts the "category/streamkey" structure relative to /var/www/hls
+            $relativePath = str_replace($hlsPath . '/', '', dirname($playlist));
+            if (!empty($relativePath)) {
+                $directories[] = $relativePath;
+            }
         }
     }
 }
@@ -123,7 +127,6 @@ body::before {
     backdrop-filter: blur(16px);
 
     border: 1px solid var(--panel-border);
-
     transition:
         opacity 0.25s ease,
         transform 0.25s ease;
@@ -175,7 +178,6 @@ body::before {
 .stream-input {
     flex: 1;
     min-width: 180px;
-
     padding: 12px 16px;
 
     border-radius: 999px;
@@ -207,7 +209,6 @@ body::before {
     cursor: pointer;
 
     color: white;
-
     transition:
         background 0.2s ease,
         transform 0.15s ease;
@@ -260,7 +261,6 @@ body::before {
     height: 48px;
 
     z-index: 110;
-
     border-radius: 50%;
     border: 1px solid var(--panel-border);
 
@@ -274,7 +274,6 @@ body::before {
     display: flex;
     align-items: center;
     justify-content: center;
-
     font-size: 22px;
 }
 
@@ -298,7 +297,6 @@ body::before {
     border-right: 1px solid var(--panel-border);
 
     padding: 85px 18px 18px;
-
     overflow-y: auto;
 
     transform: translateX(-100%);
@@ -327,7 +325,6 @@ body::before {
     margin-bottom: 10px;
 
     border-radius: 14px;
-
     background: rgba(255,255,255,0.05);
 
     cursor: pointer;
@@ -358,7 +355,6 @@ body::before {
 
     width: 280px;
     max-height: calc(100vh - 120px);
-
     overflow-y: auto;
 
     z-index: 90;
@@ -383,7 +379,6 @@ body::before {
     align-items: center;
     justify-content: center;
     flex-direction: column;
-
     gap: 16px;
 
     z-index: 50;
@@ -407,7 +402,6 @@ body::before {
     height: 54px;
 
     border-radius: 50%;
-
     border: 4px solid rgba(255,255,255,0.15);
     border-top-color: #3b82f6;
 
@@ -443,7 +437,6 @@ body::before {
     flex-wrap: wrap;
 
     padding: 12px 18px;
-
     border-radius: 24px;
 
     background: var(--panel-bg);
@@ -524,7 +517,6 @@ body::before {
     .stats-bar {
         bottom: 12px;
         width: calc(100vw - 16px);
-
         gap: 10px;
 
         padding: 10px 14px;
@@ -593,14 +585,12 @@ body::before {
         <?php else: ?>
 
             <?php foreach ($directories as $dir): ?>
-
                 <div
                     class="directory-item"
                     onclick="loadDirectoryStream('<?= htmlspecialchars(addslashes($dir)) ?>')"
                 >
                     📁 <?= htmlspecialchars($dir) ?>
                 </div>
-
             <?php endforeach; ?>
 
         <?php endif; ?>
@@ -673,7 +663,8 @@ body::before {
         playsinline
     ></video>
 
-    <div class="center-overlay visible" id="overlay">
+    <div class="center-overlay visible" 
+        id="overlay">
 
         <div class="spinner"></div>
 
@@ -744,7 +735,6 @@ let controlsTimeout = null;
 
 const player = videojs('video', {
     fluid: true,
-
     html5: {
         vhs: {
             overrideNative: true
@@ -761,7 +751,6 @@ function toggleSidebar() {
 function loadDirectoryStream(streamKey) {
     streamInput.value = streamKey;
     loadStream(streamKey);
-
     if (window.innerWidth <= 768) {
         directorySidebar.classList.remove('open');
     }
@@ -782,63 +771,43 @@ function setStatus(text, color = '#10b981') {
 }
 
 function updateMuteButton() {
-
     const muted = player.muted();
-
-    muteBtn.textContent = muted
-        ? 'Unmute'
-        : 'Mute';
-
-    volumeText.textContent = muted
-        ? 'Muted'
-        : Math.round(player.volume() * 100) + '%';
+    muteBtn.textContent = muted ? 'Unmute' : 'Mute';
+    volumeText.textContent = muted ? 'Muted' : Math.round(player.volume() * 100) + '%';
 }
 
 player.on('loadedmetadata', () => {
-
     setStatus('LIVE', '#10b981');
-
     hideOverlay();
-
     const quality = player.videoHeight();
-
     if (quality) {
-        document.getElementById('resolution').textContent =
-            quality + 'p';
+        document.getElementById('resolution').textContent = quality + 'p';
     }
-
     updateMuteButton();
 });
 
 player.on('volumechange', updateMuteButton);
 
 player.on('error', () => {
-
     const error = player.error();
-
     console.error('Video.js Error:', error);
-
     setStatus('OFFLINE', '#ef4444');
-
     showOverlay('Stream offline or unavailable');
 });
 
 function loadStream(streamKey) {
-
     if (!streamKey) {
         return;
     }
 
-    const source =
-        '<?= $baseUrl ?>' +
-        encodeURIComponent(streamKey) +
-        '/index.m3u8';
+    // Crucial Change: Removed encodeURIComponent from the full streamKey path
+    // so category structural slashes remain slashes (e.g. gaming/key) instead of turning into %2F
+    const segments = streamKey.split('/');
+    const encodedSegments = segments.map(seg => encodeURIComponent(seg));
+    const source = '<?= $baseUrl ?>' + encodedSegments.join('/') + '/index.m3u8';
 
-    document.getElementById('currentStream').textContent =
-        streamKey;
-
+    document.getElementById('currentStream').textContent = streamKey;
     setStatus('CONNECTING', '#f59e0b');
-
     showOverlay('Connecting to stream...');
 
     player.src({
@@ -855,36 +824,26 @@ function loadStream(streamKey) {
         '',
         '?streamkey=' + encodeURIComponent(streamKey)
     );
-
     saveRecent(streamKey);
     renderRecent();
 }
 
 function changeStream() {
-
     const key = streamInput.value.trim();
-
     if (key) {
         loadStream(key);
     }
 }
 
 function takeClip() {
-
-    const streamKey =
-        document.getElementById('currentStream').textContent;
-
+    const streamKey = document.getElementById('currentStream').textContent;
     if (!streamKey || streamKey === 'test') {
-
         alert('Cannot clip an empty or default test stream.');
-
         return;
     }
 
     setStatus('CLIPPING...', '#ef4444');
-
     const formData = new FormData();
-
     formData.append('streamkey', streamKey);
 
     fetch('clip.php', {
@@ -893,44 +852,30 @@ function takeClip() {
     })
     .then(response => response.json())
     .then(data => {
-
         if (data.success) {
-
             alert(
                 'Success!\n\n' +
                 data.message +
                 '\nSaved as: ' +
                 data.file
             );
-
         } else {
-
             alert('Clip failed: ' + data.error);
         }
-
         setStatus('LIVE', '#10b981');
     })
     .catch(error => {
-
         console.error('Error creating clip:', error);
-
         alert('An error occurred while creating the clip.');
-
         setStatus('LIVE', '#10b981');
     });
 }
 
 function saveRecent(streamKey) {
-
-    let recent =
-        JSON.parse(localStorage.getItem('recentStreams') || '[]');
-
+    let recent = JSON.parse(localStorage.getItem('recentStreams') || '[]');
     recent = recent.filter(v => v !== streamKey);
-
     recent.unshift(streamKey);
-
     recent = recent.slice(0, 10);
-
     localStorage.setItem(
         'recentStreams',
         JSON.stringify(recent)
@@ -938,58 +883,38 @@ function saveRecent(streamKey) {
 }
 
 function renderRecent() {
-
-    const recent =
-        JSON.parse(localStorage.getItem('recentStreams') || '[]');
-
-    const container =
-        document.getElementById('recentList');
-
+    const recent = JSON.parse(localStorage.getItem('recentStreams') || '[]');
+    const container = document.getElementById('recentList');
     container.innerHTML = '';
 
     if (recent.length === 0) {
-
-        container.innerHTML =
-            '<div class="empty-msg">No recent history</div>';
-
+        container.innerHTML = '<div class="empty-msg">No recent history</div>';
         return;
     }
 
     recent.forEach(stream => {
-
         const div = document.createElement('div');
-
         div.className = 'recent-item';
-
         div.textContent = stream;
-
         div.onclick = () => {
-
             streamInput.value = stream;
-
             loadStream(stream);
         };
-
         container.appendChild(div);
     });
 }
 
 function clearRecent() {
-
     localStorage.removeItem('recentStreams');
-
     renderRecent();
 }
 
 function toggleMute() {
-
     player.muted(!player.muted());
-
     updateMuteButton();
 }
 
 function toggleFullscreen() {
-
     if (!player.isFullscreen()) {
         player.requestFullscreen();
     } else {
@@ -998,58 +923,41 @@ function toggleFullscreen() {
 }
 
 async function enablePIP() {
-
     const videoEl = player.tech().el();
-
     try {
-
         if (document.pictureInPictureElement) {
-
             await document.exitPictureInPicture();
-
         } else {
-
             await videoEl.requestPictureInPicture();
         }
-
     } catch(err) {
-
         console.log(err);
     }
 }
 
 document.addEventListener('keydown', e => {
-
     if (e.target.tagName === 'INPUT') {
         return;
     }
 
     switch(e.key.toLowerCase()) {
-
         case ' ':
-
             e.preventDefault();
-
             if (player.paused()) {
                 player.play();
             } else {
                 player.pause();
             }
-
             break;
-
         case 'm':
             toggleMute();
             break;
-
         case 'f':
             toggleFullscreen();
             break;
-
         case 'p':
             enablePIP();
             break;
-
         case 'c':
             takeClip();
             break;
@@ -1057,25 +965,17 @@ document.addEventListener('keydown', e => {
 });
 
 streamInput.addEventListener('keypress', e => {
-
     if (e.key === 'Enter') {
         changeStream();
     }
 });
 
 function showControls() {
-
-    const controls =
-        document.getElementById('controls');
-
+    const controls = document.getElementById('controls');
     controls.classList.remove('hidden');
-
     clearTimeout(controlsTimeout);
-
     controlsTimeout = setTimeout(() => {
-
         controls.classList.add('hidden');
-
     }, window.innerWidth <= 768 ? 2200 : 3200);
 }
 
@@ -1085,33 +985,19 @@ document.addEventListener('touchstart', showControls);
 showControls();
 
 setInterval(() => {
-
     if (!player.paused()) {
-
         const liveTracker = player.liveTracker;
-
         if (liveTracker && liveTracker.isLive()) {
-
-            const latency =
-                liveTracker.liveWindow() -
-                player.currentTime();
-
-            document.getElementById('latency').textContent =
-                Math.max(0, latency).toFixed(1) + 's';
-
+            const latency = liveTracker.liveWindow() - player.currentTime();
+            document.getElementById('latency').textContent = Math.max(0, latency).toFixed(1) + 's';
         } else {
-
-            document.getElementById('latency').textContent =
-                '--';
+            document.getElementById('latency').textContent = '--';
         }
     }
-
 }, 1000);
 
 loadStream('<?= htmlspecialchars($streamKey) ?>');
-
 renderRecent();
-
 updateMuteButton();
 </script>
 

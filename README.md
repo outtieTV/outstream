@@ -29,43 +29,44 @@ $ git clone https://github.com/arut/nginx-rtmp-module.git<br />
 $ git clone https://github.com/kaltura/nginx-vod-module.git<br />
 $ cd nginx-1.31.0<br />
 <br />
-\# x86-64<br />
-./configure \
-    --prefix=/etc/nginx \
-    --conf-path=/etc/nginx/nginx.conf \
-    --error-log-path=/var/log/nginx/error.log \
-    --http-log-path=/var/log/nginx/access.log \
-    --pid-path=/run/nginx.pid \
-    --sbin-path=/usr/sbin/nginx \
-    --with-http_ssl_module \
-    --with-http_v2_module \
-    --with-http_stub_status_module \
-    --with-http_realip_module \
-    --with-file-aio \
-    --with-threads \
-    --with-stream \
-    --with-cc-opt="-O3 -mpopcnt" \
-    --add-module=../nginx-vod-module-1.33 \
+#x86-64<br />
+<br />
+./configure \<br />
+    --prefix=/etc/nginx \<br />
+    --conf-path=/etc/nginx/nginx.conf \<br />
+    --error-log-path=/var/log/nginx/error.log \<br />
+    --http-log-path=/var/log/nginx/access.log \<br />
+    --pid-path=/run/nginx.pid \<br />
+    --sbin-path=/usr/sbin/nginx \<br />
+    --with-http_ssl_module \<br />
+    --with-http_v2_module \<br />
+    --with-http_stub_status_module \<br />
+    --with-http_realip_module \<br />
+    --with-file-aio \<br />
+    --with-threads \<br />
+    --with-stream \<br />
+    --with-cc-opt="-O3 -mpopcnt" \<br />
+    --add-module=../nginx-vod-module-1.33 \<br />
     --add-module=../nginx-rtmp-module<br />
-\# arm<br />
-./configure \
-    --prefix=/etc/nginx \
-    --conf-path=/etc/nginx/nginx.conf \
-    --error-log-path=/var/log/nginx/error.log \
-    --http-log-path=/var/log/nginx/access.log \
-    --pid-path=/run/nginx.pid \
-    --sbin-path=/usr/sbin/nginx \
-    --with-http_ssl_module \
-    --with-http_v2_module \
-    --with-http_stub_status_module \
-    --with-http_realip_module \
-    --with-file-aio \
-    --with-threads \
-    --with-stream \
-    --with-cc-opt="-O3" \
-    --add-module=../nginx-vod-module-1.33 \
-    --add-module=../nginx-rtmp-module
-
+#arm<br />
+./configure \<br />
+    --prefix=/etc/nginx \<br />
+    --conf-path=/etc/nginx/nginx.conf \<br />
+    --error-log-path=/var/log/nginx/error.log \<br />
+    --http-log-path=/var/log/nginx/access.log \<br />
+    --pid-path=/run/nginx.pid \<br />
+    --sbin-path=/usr/sbin/nginx \<br />
+    --with-http_ssl_module \<br />
+    --with-http_v2_module \<br />
+    --with-http_stub_status_module \<br />
+    --with-http_realip_module \<br />
+    --with-file-aio \<br />
+    --with-threads \<br />
+    --with-stream \<br />
+    --with-cc-opt="-O3" \<br />
+    --add-module=../nginx-vod-module-1.33 \<br />
+    --add-module=../nginx-rtmp-module<br />
+<br />
 $ make && sudo make install<br />
 $ nginx -V<br />
 $ sudo apt install php-fpm -y<br />
@@ -158,3 +159,4 @@ http://10.0.0.65:9090/index.php?streamkey=runescape
 
 ```
 
+<br />

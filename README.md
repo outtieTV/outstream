@@ -77,3 +77,74 @@ $ sudo nginx -t<br />
 $ sudo systemctl enable nginx<br />
 $ sudo systemctl start nginx<br />
 <br />
+By default, an open Nginx RTMP configuration allows anyone who knows your server IP to stream to it. To protect your server from unauthorized use, your configuration leverages an **`on_publish`** authentication directive. When you click "Start Streaming" in OBS, Nginx sends a hidden validation request behind the scenes to a PHP script to verify that you are allowed to broadcast.
+---
+
+### Step 1: Find Your Server Connection Info
+
+* **Streaming Server Base IP:** `10.0.0.65`
+* **HLS Web Panel Port:** `9090`
+* **RTMP Live Ingestion Port:** `1935`
+
+### Step 2: Determine Your Stream Key and Password
+
+Your server looks for the stream credentials directly inside the **Stream Key** field in OBS. It splits them using a **secret password string** (or hash) appended to your stream identity using a delimiter (such as a `?` or a `_`).
+
+For a **RuneScape** stream, your configuration checks for your specific authorized identity:
+
+* **Stream Name / Identity:** `runescape`
+* **Your Stream Key / Secret Token:** *(This is the custom password or alphanumeric hash you defined in your `config.php` or auth database, e.g., `mySecretPassword123`)*
+
+---
+
+### Step 3: Configure OBS Studio
+
+1. Open **OBS Studio**.
+2. Go to **Settings** (bottom right corner) $\rightarrow$ Click on the **Stream** tab in the left sidebar.
+3. Change the **Service** dropdown menu to **Custom...**
+4. Set your **Server** URL to point to your Nginx live application block:
+```text
+rtmp://10.0.0.65:1935/live
+
+```
+
+
+5. Enter your **Stream Key** formatted with your authentication token. Depending on how your `on_publish` auth script parses arguments, combine them like this:
+```text
+runescape?name=runescape&key=mySecretPassword123
+
+```
+
+
+*(If your backend script parses raw RTMP arguments via the name parameter, ensure your unique token matches your server's backend configuration variable exactly).*
+6. Click **Apply** and then **OK**.
+
+---
+
+### Step 4: Set up Your RuneScape Scene in OBS
+
+1. Locate the **Sources** panel at the bottom of the main OBS window.
+2. Click the **`+`** icon and select **Window Capture** (ideal for the RuneScape Launcher or RuneLite client).
+3. Name it `RuneScape Client` and click OK.
+4. Select your RuneScape/RuneLite client from the **Window** dropdown menu.
+5. In the **Audio Mixer** panel, verify your desktop audio device is unmuted so game sounds are captured.
+
+---
+
+### Step 5: Go Live & Handshake Verification
+
+1. Click **Start Streaming** in OBS.
+2. **What happens under the hood:** Nginx catches the connection, extracts your stream key details, and immediately fires a local request to your authentication script (`/var/www/html/auth.php` or your designated authentication endpoint).
+3. If the token matches, the script returns a `200 OK` HTTP status code, and OBS will display a steady green connection block. If the token is missing or wrong, the script returns a `404` or `403`, and OBS will instantly disconnect with an "Unauthorized / Connection failed" error.
+
+---
+
+### Step 6: Watch the Stream
+
+Once the server successfully verifies your stream handshake, navigate to your player interface to view the live HLS feed. You only need to pass the stream identity to the web player, **not** your private streaming password:
+
+```text
+http://10.0.0.65:9090/index.php?streamkey=runescape
+
+```
+
